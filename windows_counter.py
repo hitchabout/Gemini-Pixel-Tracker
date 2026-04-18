@@ -4,44 +4,50 @@ import json
 import os
 import ctypes
 
-# Windows sound library for retro blips
+# Windows sound library
 try:
     import winsound
 except ImportError:
     winsound = None
 
 # ==========================================================
-# 🎨 THE COLOR VAULT
+# 💾 PERSISTENCE PATHING (The Fix for "Forgetting")
+# ==========================================================
+# This ensures the save file is ALWAYS in the same folder as this script
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SAVE_FILE = os.path.join(SCRIPT_DIR, "tracker_save.json")
+
+# ==========================================================
+# 🎨 THE COLOR MASTER LIST
 # ==========================================================
 
 COLOR_MAP = {
-    "Deep Blue": "#050a15",
-    "Pitch Black": "#000000",
-    "Dark Grey": "#121212",
-    "Soft Navy": "#1a1b26",
-    "Slate": "#1e293b",
-    "Steel": "#2d3748",
-    "Charcoal": "#111827",
-    "Midnight": "#0f172a",
-    "Cyber Purple": "#2d002d",
-    "Electric Purple": "#6b21a8",
-    "Terminal Green": "#051505",
-    "Bright Blue": "#3b82f6",
-    "Nirvana Blue": "#0ea5e9",
-    "Emerald": "#22c55e",
     "Amethyst": "#a855f7",
+    "Bright Blue": "#3b82f6",
+    "Charcoal": "#111827",
+    "Cyan": "#06b6d4",
+    "Cyber Purple": "#2d002d",
+    "Dark Grey": "#121212",
+    "Deep Blue": "#050a15",
+    "Electric Purple": "#6b21a8",
+    "Emerald": "#22c55e",
+    "Ghost White": "#f8fafc",
     "Hot Pink": "#ec4899",
     "Lava Orange": "#ea580c",
-    "Vibrant Orange": "#f97316",
-    "Cyan": "#06b6d4",
-    "Ghost White": "#f8fafc",
+    "Midnight": "#0f172a",
+    "Nirvana Blue": "#0ea5e9",
+    "Pitch Black": "#000000",
     "Silver": "#64748b",
-    "Solid White": "#ffffff"
+    "Slate": "#1e293b",
+    "Soft Navy": "#1a1b26",
+    "Solid White": "#ffffff",
+    "Steel": "#2d3748",
+    "Terminal Green": "#051505",
+    "Vibrant Orange": "#f97316"
 }
 
 HEX_TO_NAME = {v: k for k, v in COLOR_MAP.items()}
 
-# Individual tracker accent colors (buttons/bars)
 ACCENT_COLORS = [
     {"name": "Blue", "hex": "#3b82f6"},
     {"name": "Green", "hex": "#22c55e"},
@@ -52,7 +58,6 @@ ACCENT_COLORS = [
     {"name": "White", "hex": "#ffffff"}
 ]
 
-# Preset Hub Skins
 GLOBAL_THEMES = {
     "Gemini": {"bg": "#050a15", "card": "#0f172a", "border": "#1e293b", "font": "#f8fafc"},
     "Terminal": {"bg": "#000000", "card": "#050505", "border": "#00ff41", "font": "#00ff41"},
@@ -205,7 +210,6 @@ class App:
         self.editing_widget = None
         self.widgets = []
 
-        # UI Layout
         self.root.configure(bg=self.theme["bg"])
         self.root.attributes("-topmost", True)
 
@@ -286,12 +290,17 @@ class App:
             tk.Radiobutton(color_f, bg=c["hex"], indicatoron=0, width=2, height=1, variable=self.color_var, value=c["hex"], selectcolor="white").pack(side="left", padx=2)
         tk.Button(self.config_tab, text="SAVE / CREATE", command=self.drawer_submit, bg=ACCENT_COLORS[0]["hex"], fg="white", bd=0, font=("Segoe UI", 8, "bold")).pack(fill="x", pady=20, ipady=10)
 
-        # --- Tab 2: Options & Designer ---
+        # --- Tab 2: Designer System (DS) ---
         self.options_tab = tk.Frame(self.drawer_content, bg=self.theme["card"])
-        tk.Checkbutton(self.options_tab, text="Enable Button Click Sounds", variable=self.sound_enabled, 
-                       bg=self.theme["card"], fg="white", selectcolor="#000", font=("Segoe UI", 9)).pack(anchor="w")
+        
+        # Presets
+        tk.Label(self.options_tab, text="THEME PRESETS", **lbl_style).pack(pady=(0, 5), anchor="w")
+        preset_f = tk.Frame(self.options_tab, bg=self.theme["card"])
+        preset_f.pack(fill="x", pady=(0, 15))
+        for name, data in GLOBAL_THEMES.items():
+            tk.Button(preset_f, text=name.upper(), font=("Segoe UI", 7, "bold"), bg="#334155", fg="white", bd=0, padx=10, command=lambda d=data: self.set_global_theme(d)).pack(side="left", padx=2)
 
-        tk.Label(self.options_tab, text="HUB SKIN DESIGNER", **lbl_style).pack(pady=(15, 5), anchor="w")
+        tk.Label(self.options_tab, text="DS: HUB SKIN DESIGNER", **lbl_style).pack(pady=(10, 5), anchor="w")
         color_names = sorted(list(COLOR_MAP.keys()))
         
         def build_dropdown(label, key):
@@ -308,7 +317,7 @@ class App:
         self.cb_border = build_dropdown("Border Color", "border")
         self.cb_font = build_dropdown("Font Color", "font")
 
-        tk.Label(self.options_tab, text="SKIN FAVORITE SLOTS", **lbl_style).pack(pady=(15, 5), anchor="w")
+        tk.Label(self.options_tab, text="DESIGN FAVORITE SLOTS", **lbl_style).pack(pady=(15, 5), anchor="w")
         fav_f = tk.Frame(self.options_tab, bg=self.theme["card"])
         fav_f.pack(fill="x")
         self.fav_btns = []
@@ -322,8 +331,12 @@ class App:
         for i in range(3):
             tk.Button(save_f, text=f"SAVE TO {i+1}", font=("Segoe UI", 6, "bold"), bg=self.theme["card"], fg="#64748b", bd=1, width=13, command=lambda idx=i: self.save_favorite(idx)).pack(side="left", padx=2)
 
-        tk.Label(self.options_tab, text="ALWAYS-ON QUICK GUIDE", **lbl_style).pack(pady=(15, 5), anchor="w")
-        guide_text = "• HOLD +/- for TURBO counting\n• Click TITLE to edit name/color\n• ↺ Resets one tracker to start\n• RESET ALL (top) clears the board\n• Design favorites save your skins"
+        # Settings
+        tk.Checkbutton(self.options_tab, text="Enable Click Sounds", variable=self.sound_enabled, 
+                       bg=self.theme["card"], fg="white", selectcolor="#000", font=("Segoe UI", 8), command=self.save_data).pack(pady=10, anchor="w")
+
+        tk.Label(self.options_tab, text="QUICK GUIDE", **lbl_style).pack(pady=(10, 5), anchor="w")
+        guide_text = "• HOLD +/- for TURBO counting\n• Click TITLE to edit a tracker card\n• ↺ Resets one tracker to start\n• Designer slots save your custom skins"
         tk.Label(self.options_tab, bg="#000", fg="#22c55e", font=("Consolas", 8), justify="left", padx=10, pady=10, text=guide_text).pack(fill="x")
 
         tk.Button(self.drawer, text="CLOSE DESIGNER", command=self.close_drawer, bg="#334155", fg="white", bd=0, font=("Segoe UI", 8, "bold")).pack(side="bottom", fill="x", ipady=12)
@@ -343,23 +356,22 @@ class App:
         if self.favorites[index]:
             self.theme = self.favorites[index].copy()
             self.apply_global_theme()
-            # Update the dropdowns to match loaded skin
-            self.cb_bg.set(HEX_TO_NAME.get(self.theme["bg"], "Custom"))
-            self.cb_card.set(HEX_TO_NAME.get(self.theme["card"], "Custom"))
-            self.cb_border.set(HEX_TO_NAME.get(self.theme["border"], "Custom"))
-            self.cb_font.set(HEX_TO_NAME.get(self.theme["font"], "Custom"))
+            self.update_ds_dropdowns()
             self.save_data()
-        else: messagebox.showinfo("Slot Empty", "Nothing saved here yet!")
+        else: messagebox.showinfo("Slot Empty", "Save a look first!")
+
+    def update_ds_dropdowns(self):
+        self.cb_bg.set(HEX_TO_NAME.get(self.theme["bg"], "Custom"))
+        self.cb_card.set(HEX_TO_NAME.get(self.theme["card"], "Custom"))
+        self.cb_border.set(HEX_TO_NAME.get(self.theme["border"], "Custom"))
+        self.cb_font.set(HEX_TO_NAME.get(self.theme["font"], "Custom"))
 
     def open_drawer(self, widget=None, mode="config"):
         self.editing_widget = widget
         self.config_tab.pack_forget(); self.options_tab.pack_forget()
         if mode == "options":
             self.options_tab.pack(fill="both")
-            self.cb_bg.set(HEX_TO_NAME.get(self.theme["bg"], "Custom"))
-            self.cb_card.set(HEX_TO_NAME.get(self.theme["card"], "Custom"))
-            self.cb_border.set(HEX_TO_NAME.get(self.theme["border"], "Custom"))
-            self.cb_font.set(HEX_TO_NAME.get(self.theme["font"], "Custom"))
+            self.update_ds_dropdowns()
         else:
             self.config_tab.pack(fill="both")
             if widget:
@@ -372,7 +384,15 @@ class App:
                 self.goal_entry.delete(0, tk.END); self.dir_var.set("up")
         self.drawer.place(rely=0.04) 
 
-    def close_drawer(self): self.drawer.place(rely=1)
+    def close_drawer(self): 
+        self.drawer.place(rely=1)
+        self.save_data() # Extra save when closing the menu
+
+    def set_global_theme(self, theme_dict):
+        self.theme = theme_dict.copy()
+        self.apply_global_theme()
+        self.update_ds_dropdowns()
+        self.save_data()
 
     def apply_global_theme(self):
         ui = self.theme
@@ -406,12 +426,14 @@ class App:
 
     def save_data(self):
         data = {"theme": self.theme, "sound": self.sound_enabled.get(), "favorites": self.favorites, "items": [w.to_dict() for w in self.widgets]}
-        with open("tracker_save.json", "w") as f: json.dump(data, f)
+        try:
+            with open(SAVE_FILE, "w") as f: json.dump(data, f)
+        except: pass
 
     def load_data(self):
-        if os.path.exists("tracker_save.json"):
+        if os.path.exists(SAVE_FILE):
             try:
-                with open("tracker_save.json", "r") as f:
+                with open(SAVE_FILE, "r") as f:
                     d = json.load(f)
                     self.theme = d.get("theme", GLOBAL_THEMES["Gemini"])
                     if "font" not in self.theme: self.theme["font"] = "#f8fafc"
